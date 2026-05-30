@@ -1,0 +1,13 @@
+{
+  "name": "@agentpass/demo-agent",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "start": "bun src/index.ts",
+    "dev": "bun --watch src/index.ts"
+  },
+  "dependencies": {
+    "@agentpass/sdk": "workspace:*",
+    "@mysten/sui": "^1.0.0"
+  }
+}

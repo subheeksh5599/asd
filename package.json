@@ -1,0 +1,5 @@
+{
+  "name": "agentpass",
+  "private": true,
+  "workspaces": ["sdk", "indexer", "app", "demo-agent"]
+}
