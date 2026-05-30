@@ -1,31 +1,61 @@
-import { AgentPass } from "@agentpass/sdk"
+import { loadKeypair } from "./keypair.js"
+import { checkAuthorization } from "./agentpass.js"
+import { executeAction } from "./action.js"
+import { config } from "./config.js"
 
-// Demo agent — checks AgentPass before every DeepBook trade
-// Used exclusively for hackathon demo
+const SCOPE = "trade:deepbook"
 
-const ap = new AgentPass({ network: "testnet" })
+export async function runAgent(): Promise<void> {
+  const keypair = loadKeypair()
+  const address = keypair.toSuiAddress()
 
-export async function runTradeLoop(agentAddress: string) {
-  console.log(`Agent ${agentAddress} starting trade loop...`)
+  console.log("═══════════════════════════════════════")
+  console.log("  AgentPass Demo Agent")
+  console.log("═══════════════════════════════════════")
+  console.log(`  Address: ${address}`)
+  console.log(`  Scope:   ${SCOPE}`)
+  console.log(`  Network: ${config.network}`)
+  console.log(`  Poll:    every ${config.pollIntervalMs}ms`)
+  console.log("═══════════════════════════════════════")
+  console.log()
+
+  // Initial authorization check
+  const initial = await checkAuthorization(address, SCOPE)
+  if (!initial.authorized) {
+    console.log(`✗ Not authorized: ${initial.reason}`)
+    console.log("  Ask the delegator to issue a capability at /dashboard/grant")
+    console.log(`  Agent address to authorize: ${address}`)
+    process.exit(1)
+  }
+
+  console.log(`✓ Authorized (cap: ${initial.capId})`)
+  console.log("  Starting execution loop...\n")
+
+  let cycle = 0
 
   while (true) {
-    const isAuthorized = await ap.verify({
-      agent: agentAddress,
-      scope: "trade:deepbook",
-      amountUsdc: 100,
-    })
+    cycle++
+    const timestamp = new Date().toISOString()
 
-    if (!isAuthorized) {
-      console.log("Authorization revoked or expired. Agent halted.")
-      break
+    const { authorized, capId, reason } = await checkAuthorization(address, SCOPE)
+
+    if (!authorized) {
+      console.log(`[${timestamp}] cycle=${cycle}`)
+      console.log(`  ✗ AUTHORIZATION REVOKED — ${reason}`)
+      console.log("  Agent halted. Exiting.")
+      process.exit(0)
     }
 
-    await executeTrade(agentAddress)
-    await new Promise((r) => setTimeout(r, 5000))
-  }
-}
+    console.log(`[${timestamp}] cycle=${cycle} cap=${capId?.slice(0, 12)}...`)
 
-async function executeTrade(agent: string) {
-  // TODO: build PTB with verifier::verify() check + deepbook.place_order()
-  console.log(`[${agent}] Executing authorized trade on DeepBook...`)
+    try {
+      const { txDigest } = await executeAction(keypair, capId!)
+      console.log(`  ✓ Action executed | digest: ${txDigest}`)
+      console.log(`    https://suiscan.xyz/testnet/tx/${txDigest}`)
+    } catch (err: any) {
+      console.error(`  ✗ Action failed: ${err.message}`)
+    }
+
+    await new Promise((r) => setTimeout(r, config.pollIntervalMs))
+  }
 }

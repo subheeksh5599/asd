@@ -5,5 +5,7 @@ export type {
   VerifyOptions,
   Capability,
   AuditEntry,
+  GrantResult,
+  RevokeResult,
   Network,
 } from "./types.js"
